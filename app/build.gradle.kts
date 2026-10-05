@@ -120,6 +120,8 @@ dependencies {
 
     // --- Biometrics ---------------------------------------------------------------------------
     implementation("androidx.biometric:biometric:1.1.0")
+    // AppCompat theme for biometric's fingerprint-dialog fallback on some API 28 devices.
+    implementation("androidx.appcompat:appcompat:1.7.0")
 
     // --- Security / crypto --------------------------------------------------------------------
     // Argon2id (native reference implementation via JNI).

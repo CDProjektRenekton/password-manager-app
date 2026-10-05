@@ -1,9 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Compose draws everything; the platform theme only needs to be edge-to-edge friendly. -->
-    <style name="Theme.SecureVault" parent="android:Theme.Material.NoActionBar">
+    <!--
+        Compose draws everything; the platform theme only needs to be edge-to-edge friendly.
+        It must be an AppCompat theme: on some Android 9 devices (e.g. Samsung) androidx.biometric
+        shows its own AppCompat fingerprint dialog for CryptoObject auth, which crashes with
+        "You need to use a Theme.AppCompat theme" under a plain platform theme.
+    -->
+    <style name="Theme.SecureVault" parent="Theme.AppCompat.DayNight.NoActionBar">
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
-        <item name="android:windowBackground">@android:color/black</item>
     </style>
 </resources>
