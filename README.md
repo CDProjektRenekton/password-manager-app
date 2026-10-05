@@ -134,5 +134,57 @@ Design decisions:
 
 ```bash
 ./gradlew :app:testDebugUnitTest     # JVM tests: HKDF RFC vectors, AES-GCM tamper/AAD, generator, zxcvbn
-./gradlew :app:assembleRelease       # R8-minified, logs stripped
+./gradlew :app:assembleDebug         # app/build/outputs/apk/debug/app-debug.apk
+./gradlew :app:assembleRelease       # R8-minified, logs stripped (signed only if SIGNING_* env vars are set)
 ```
+
+Every push runs `.github/workflows/android.yml`, which runs the tests and attaches the APKs to the
+workflow run as downloadable artifacts.
+
+## 8. Installing on a phone
+
+Requires **Android 9 (API 28) or newer**. Biometric unlock needs a Class 3 ("strong") fingerprint or
+face sensor. The app is not on the Play Store, so you sideload the APK.
+
+> **Read before storing real passwords.** The vault exists only on the phone, and there's no export or
+> backup yet. **Uninstalling the app deletes the vault.** Android also refuses to update an app whose
+> signing key has changed, so the only way to replace such a build is to uninstall it, which deletes the vault.
+
+### Option A: test build from GitHub (no tools needed)
+1. On GitHub, open **Actions → Android build**, click the latest green run, and download the
+   **`securevault-debug-apk`** artifact (a zip; artifacts are kept for 90 days).
+2. Unzip it and copy `app-debug.apk` to the phone.
+3. Open it on the phone. Allow **"Install unknown apps"** for your file manager or browser when asked, then install.
+   It appears as *SecureVault* (package `com.securevault.debug`).
+
+The debug build is for **trying the app only**. It is *debuggable*, so anyone with USB-debugging access
+to the phone can attach a debugger to it. CI also signs it with a throwaway key that changes on every
+run, so a newer debug APK can't be installed over the old one without uninstalling first, which wipes the vault.
+
+### Option B: your own signed release build (for real use)
+Do this once. You need a JDK for `keytool`.
+
+```bash
+keytool -genkeypair -v -keystore securevault.jks -alias securevault \
+        -keyalg RSA -keysize 4096 -validity 10000      # use ONE password for store and key
+base64 -w0 securevault.jks > securevault.jks.b64       # macOS: base64 -i securevault.jks -o securevault.jks.b64
+```
+
+In the repo, go to **Settings → Secrets and variables → Actions** and add these repository secrets:
+
+| Secret | Value |
+|---|---|
+| `SIGNING_KEYSTORE_BASE64` | contents of `securevault.jks.b64` |
+| `SIGNING_STORE_PASSWORD` | the password you chose |
+| `SIGNING_KEY_ALIAS` | `securevault` |
+| `SIGNING_KEY_PASSWORD` | the same password |
+
+Push a commit, or click **Run workflow** on the Actions tab. The run now also produces
+**`securevault-release-apk`**: minified, non-debuggable, and signed with *your* key, so later builds update in place.
+**Back up `securevault.jks` and its password offline.** Without them you can never ship an update to your installed app.
+Never commit the keystore (`*.jks` is git-ignored).
+
+### Option C: Android Studio
+Open the project folder, connect the phone with USB debugging on, and press **Run** for a debug install.
+For a release install, use **Build → Generate Signed App Bundle / APK** with your keystore.
+From the command line: `adb install -r app/build/outputs/apk/release/app-release.apk`.
