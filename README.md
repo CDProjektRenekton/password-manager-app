@@ -43,7 +43,7 @@ BiometricPrompt ─► Keystore key (StrongBox/TEE, ──────► VAULT 
                    invalidated on new enrollment)         ├─HKDF "sqlcipher/v1"─► SQLCipher raw key (x'…')
                                                           └─HKDF "fields/v1"────► field key (AES-256-GCM)
 
-vault.meta = AES-GCM(Keystore device-bound key, unlockedDeviceRequired) {
+vault.meta = AES-GCM(Keystore device-bound key) {
                argon2 salt + params, password-wrapped VK, biometric-wrapped VK? }
 ```
 
@@ -54,6 +54,7 @@ Design decisions:
 | A random vault key wraps the data, not the Argon2 output directly | Changing the master password or enabling biometrics only re-wraps 32 bytes. Data is never re-encrypted. |
 | No stored password hash or verifier | A wrong password fails the AES-GCM tag when unwrapping the VK. Nothing on disk can be checked against guesses faster than the full Argon2id run. |
 | Metadata sealed with a **device-bound Keystore key** | A copied data directory, such as a leaked backup or a forensic image, can't be brute-forced offline. The attacker also needs this device's TEE or StrongBox, unlocked. |
+| Device key is **not** `unlockedDeviceRequired` | That flag ties a key to the lock-screen credential: generation fails on phones without a secure lock screen, and removing the lock screen later could make the key unusable, which would destroy the vault even for someone who knows the master password. The master password and Argon2id still guard the vault key, so the flag added little. |
 | Biometric key: **auth-per-use + CryptoObject** | Biometrics gate unlocking *cryptographically*. The Keystore will not decrypt the VK without a fresh Class-3 auth, so hooking a "success" callback does nothing. |
 | Field-level AES-GCM **on top of** SQLCipher | Defence in depth. Plaintext SQLite pages in RAM still hold only ciphertext for every user field, and the AAD (`uuid\|column`) stops ciphertexts being swapped between rows or columns. |
 | Field key lives in RAM rather than in the Keystore | Keystore operations are IPC calls into the TEE: 1–20 ms each, and much slower on StrongBox. A Keystore-only field key would also make the master password irrelevant, because anyone holding the unlocked phone could decrypt through the app. The field key comes from the VK, so data stays bound to the master password. |
@@ -77,7 +78,7 @@ Design decisions:
 | Background / 1-minute lock | `security/lock/AutoLockManager.kt`, `SecureVaultApp.kt`, `MainActivity.onUserInteraction` |
 | Room + SQLCipher | `data/db/CredentialEntity.kt`, `CredentialDao.kt`, `VaultDatabase.kt` |
 | AES-256-GCM field encryption | `security/crypto/AesGcm.kt`, `data/repository/CredentialRepository.kt` |
-| Hardware-backed keys | `CryptographyManager` (StrongBox when present, TEE otherwise, `setUnlockedDeviceRequired`) |
+| Hardware-backed keys | `CryptographyManager` (StrongBox when present, TEE otherwise; biometric key is also `setUnlockedDeviceRequired`) |
 | 30 s clipboard wipe | `security/clipboard/SecureClipboard.kt` (coroutine, plus a WorkManager fallback for process death) |
 | FLAG_SECURE | `MainActivity.onCreate`, plus `setRecentsScreenshotEnabled(false)` on 13+ |
 | CharArray/ByteArray secrets | `security/crypto/SecureMemory.kt`, `ui/components/TextFieldStateExt.kt`, `CredentialDraft`/`CredentialSecrets` |
@@ -115,7 +116,7 @@ Design decisions:
 
 | Attacker | Outcome |
 |---|---|
-| Steals a locked phone | The DB is SQLCipher-encrypted and the metadata is sealed by a Keystore key that refuses use while the device is locked. Brute-forcing requires Argon2id per guess, on-device, with exponential back-off after 5 failures. |
+| Steals a locked phone | The DB is SQLCipher-encrypted and the metadata is sealed by a non-exportable Keystore key. Brute-forcing requires Argon2id per guess, on-device, with exponential back-off after 5 failures. |
 | Copies app data (root/forensics/backup) | Backups and D2D transfer are disabled. A copy can't be attacked offline because the metadata key never leaves the TEE or StrongBox. |
 | Malware taking screenshots or screen-recording | FLAG_SECURE gives it black frames, and the Recents thumbnail is blank. |
 | Clipboard sniffing | The clip is flagged `IS_SENSITIVE`, wiped after 30 s, and wiped even if the process dies (WorkManager). |

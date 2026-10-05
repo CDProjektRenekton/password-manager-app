@@ -104,7 +104,8 @@ jobs:
           profile: pixel_6
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
-          script: ./gradlew --no-daemon --stacktrace :app:connectedDebugAndroidTest
+          # On failure, print the full JUnit XML (complete stack traces with "Caused by" chains).
+          script: ./gradlew --no-daemon --stacktrace :app:connectedDebugAndroidTest || (find app/build/outputs/androidTest-results -name '*.xml' -exec cat {} + ; exit 1)
 
       - name: Upload device test reports
         if: always()

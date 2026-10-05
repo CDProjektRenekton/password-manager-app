@@ -4,9 +4,9 @@ import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyPermanentlyInvalidatedException
 import android.security.keystore.KeyProperties
-import android.security.keystore.StrongBoxUnavailableException
 import java.security.GeneralSecurityException
 import java.security.KeyStore
+import java.security.ProviderException
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
@@ -18,9 +18,12 @@ import javax.crypto.spec.GCMParameterSpec
  * only ever holds an opaque handle, and every encrypt/decrypt runs in secure hardware.
  *
  * Two kinds of Keystore keys are used:
- *  - [KeyPolicy.DEVICE_BOUND]: no user auth, usable only while the device is unlocked. Wraps the
- *    vault metadata so a copied app-data directory is useless off this device (an attacker cannot
- *    even start an offline brute-force of the master password without the hardware).
+ *  - [KeyPolicy.DEVICE_BOUND]: no user auth. Wraps the vault metadata so a copied app-data
+ *    directory is useless off this device (an attacker cannot even start an offline brute-force of
+ *    the master password without the hardware). Deliberately NOT unlocked-device-required: such
+ *    keys are tied to the lock-screen credential, so key generation fails on devices without a
+ *    secure lock screen, and removing the lock screen later could make the key (and with it the
+ *    whole vault) permanently unrecoverable even with the correct master password.
  *  - [KeyPolicy.BIOMETRIC_BOUND]: every single use must be authorised by a Class 3 (strong)
  *    biometric through BiometricPrompt + CryptoObject, and the key is permanently invalidated
  *    when a new fingerprint/face is enrolled.
@@ -51,7 +54,9 @@ class CryptographyManager(
         return if (strongBoxAvailable) {
             try {
                 generateKey(alias, policy, useStrongBox = true)
-            } catch (e: StrongBoxUnavailableException) {
+            } catch (e: ProviderException) {
+                // StrongBoxUnavailableException, or a StrongBox that rejects this key spec on
+                // some OEM builds: fall back to the TEE, which is still hardware-backed.
                 generateKey(alias, policy, useStrongBox = false)
             }
         } else {
@@ -69,14 +74,16 @@ class CryptographyManager(
             .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
             // Keystore generates the IV; the app can never force IV reuse.
             .setRandomizedEncryptionRequired(true)
-            // Key is unusable while the device is locked, even by this app.
-            .setUnlockedDeviceRequired(true)
             .setIsStrongBoxBacked(useStrongBox)
 
         if (policy == KeyPolicy.BIOMETRIC_BOUND) {
             builder
                 .setUserAuthenticationRequired(true)
                 .setInvalidatedByBiometricEnrollment(true)
+                // Biometrics already require a secure lock screen, and losing this key only
+                // disables biometric unlock (the master password still works), so the stricter
+                // policy is safe here: the key is unusable while the device is locked.
+                .setUnlockedDeviceRequired(true)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 // Timeout 0 = auth-per-use: each operation needs its own BiometricPrompt approval.
                 builder.setUserAuthenticationParameters(0, KeyProperties.AUTH_BIOMETRIC_STRONG)
