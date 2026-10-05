@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">SecureVault</string>
+    <string name="biometric_unlock_title">Unlock SecureVault</string>
+    <string name="biometric_unlock_subtitle">Confirm your identity to decrypt the vault</string>
+    <string name="biometric_enroll_title">Enable biometric unlock</string>
+    <string name="biometric_enroll_subtitle">Confirm to bind your vault key to this device\'s biometrics</string>
+    <string name="biometric_negative">Use master password</string>
+</resources>

@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+
+    <!--
+        Zero-knowledge / offline-by-default: strip INTERNET even if a transitive dependency
+        tries to merge it in. The app physically cannot open a socket.
+    -->
+    <uses-permission
+        android:name="android.permission.INTERNET"
+        tools:node="remove" />
+
+    <!--
+        allowBackup=false            -> no adb backup / Google cloud backup (API < 31).
+        dataExtractionRules          -> no cloud backup AND no device-to-device transfer (API 31+).
+        The vault is still encrypted, but exporting it would allow offline brute-force attempts
+        against a copy, and the Keystore-wrapped keys would not survive a transfer anyway.
+    -->
+    <application
+        android:name=".SecureVaultApp"
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@drawable/ic_launcher"
+        android:roundIcon="@drawable/ic_launcher"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.SecureVault"
+        tools:targetApi="35">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
