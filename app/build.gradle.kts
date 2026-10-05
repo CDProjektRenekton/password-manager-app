@@ -1,16 +1,16 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
-// Release signing comes from environment variables so no key material is ever committed.
-// Locally: export SIGNING_KEYSTORE_PATH=... SIGNING_STORE_PASSWORD=... SIGNING_KEY_ALIAS=... SIGNING_KEY_PASSWORD=...
-// In CI: see .github/workflows/android.yml. Without them, assembleRelease yields an unsigned APK.
-val releaseKeystore: File? = System.getenv("SIGNING_KEYSTORE_PATH")?.let(::File)?.takeIf { it.exists() }
-
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
     id("com.google.devtools.ksp")
 }
+
+// Release signing comes from environment variables so no key material is ever committed.
+// Locally: export SIGNING_KEYSTORE_PATH=... SIGNING_STORE_PASSWORD=... SIGNING_KEY_ALIAS=... SIGNING_KEY_PASSWORD=...
+// In CI: see .github/workflows/android.yml. Without them, assembleRelease yields an unsigned APK.
+val releaseKeystore: File? = System.getenv("SIGNING_KEYSTORE_PATH")?.let(::File)?.takeIf { it.exists() }
 
 android {
     namespace = "com.securevault"
